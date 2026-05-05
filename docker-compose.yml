@@ -1,0 +1,41 @@
+services:
+  resident-evil-tracker-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resident-evil-tracker-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql://resident_user:resident_password@resident-evil-tracker-db:5432/resident_evil_tracker
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      ENVIRONMENT: development
+    depends_on:
+      resident-evil-tracker-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  resident-evil-tracker-db:
+    image: postgres:17
+    container_name: resident-evil-tracker-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: resident_evil_tracker
+      POSTGRES_USER: resident_user
+      POSTGRES_PASSWORD: resident_password
+    volumes:
+      - resident_evil_tracker_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resident_user -d resident_evil_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  resident_evil_tracker_data:
