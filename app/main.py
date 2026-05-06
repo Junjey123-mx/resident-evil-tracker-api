@@ -6,6 +6,7 @@ from app.core.cors import configure_cors
 from app.core.exceptions import register_exception_handlers
 from app.core.response_models import HealthResponse
 from app.modules.activity_logs.activity_router import router as activity_router
+from app.modules.activity_logs.activity_router import series_activity_router
 from app.modules.archive_entries.archive_entry_router import router as archive_router
 from app.modules.cover_assets.cover_router import router as cover_router
 from app.modules.dashboard.dashboard_router import router as dashboard_router
@@ -28,6 +29,7 @@ app.include_router(archive_router)
 app.include_router(rating_router)
 app.include_router(cover_router)
 app.include_router(activity_router)
+app.include_router(series_activity_router)
 app.include_router(dashboard_router)
 
 

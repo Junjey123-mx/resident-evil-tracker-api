@@ -38,6 +38,15 @@ class ActivityLogRepository:
         result = self.session.exec(select(func.count()).select_from(ActivityLog))
         return result.one()
 
+    def count_by_series_id(self, series_id: int) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(ActivityLog)
+            .where(ActivityLog.series_id == series_id)
+        )
+        result = self.session.exec(stmt)
+        return result.one()
+
     def count_by_action(self) -> dict[str, int]:
         stmt = select(ActivityLog.action, func.count()).group_by(ActivityLog.action)
         rows = self.session.exec(stmt).all()
