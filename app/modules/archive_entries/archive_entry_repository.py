@@ -72,6 +72,15 @@ class ArchiveEntryRepository:
         stmt = select(ArchiveEntry).order_by(ArchiveEntry.created_at.desc()).limit(n)
         return list(self.session.exec(stmt).all())
 
+    def count_by_release_year(self) -> list[tuple[int, int]]:
+        stmt = (
+            select(ArchiveEntry.release_year, func.count())
+            .group_by(ArchiveEntry.release_year)
+            .order_by(ArchiveEntry.release_year.asc())
+        )
+        rows = self.session.exec(stmt).all()
+        return [(release_year, total) for release_year, total in rows]
+
     def count(self) -> int:
         result = self.session.exec(select(func.count()).select_from(ArchiveEntry))
         return result.one()
