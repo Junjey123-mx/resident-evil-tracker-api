@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
 from app.modules.archive_entries.archive_entry_model import ArchiveEntry
+from app.modules.personal_ratings.rating_model import Rating
+from app.shared.pagination import calculate_offset
+from app.shared.sorting import is_desc_order
 
 _SORT_COLUMN_MAP: dict[str, str] = {
     "title": "title",
@@ -41,11 +44,28 @@ class ArchiveEntryRepository:
         limit: int = 20,
         sort_by: str = "chronology_order",
         sort_order: str = "asc",
+        q: str | None = None,
+        sort: str | None = None,
+        order: str | None = None,
+        page: int | None = None,
     ) -> list[ArchiveEntry]:
-        col_name = _SORT_COLUMN_MAP.get(sort_by, "chronology_order")
-        col = getattr(ArchiveEntry, col_name)
-        order_expr = col.desc() if sort_order.lower() == "desc" else col.asc()
-        stmt = select(ArchiveEntry).order_by(order_expr).offset(offset).limit(limit)
+        effective_sort = sort or sort_by
+        effective_order = order or sort_order
+        effective_offset = calculate_offset(page, limit) if page is not None else offset
+
+        stmt = self._base_list_statement(q)
+
+        if effective_sort == "rating":
+            stmt = stmt.outerjoin(Rating, Rating.series_id == ArchiveEntry.id)
+            rating_order = Rating.score.desc() if is_desc_order(effective_order) else Rating.score.asc()
+            stmt = stmt.order_by(rating_order.nulls_last(), ArchiveEntry.title.asc())
+        else:
+            col_name = _SORT_COLUMN_MAP.get(effective_sort, "chronology_order")
+            col = getattr(ArchiveEntry, col_name)
+            order_expr = col.desc() if is_desc_order(effective_order) else col.asc()
+            stmt = stmt.order_by(order_expr, ArchiveEntry.id.asc())
+
+        stmt = stmt.offset(effective_offset).limit(limit)
         return list(self.session.exec(stmt).all())
 
     def get_recent(self, n: int = 5) -> list[ArchiveEntry]:
@@ -54,6 +74,14 @@ class ArchiveEntryRepository:
 
     def count(self) -> int:
         result = self.session.exec(select(func.count()).select_from(ArchiveEntry))
+        return result.one()
+
+    def count_filtered(self, q: str | None = None) -> int:
+        stmt = select(func.count()).select_from(ArchiveEntry)
+        search_filter = self._build_search_filter(q)
+        if search_filter is not None:
+            stmt = stmt.where(search_filter)
+        result = self.session.exec(stmt)
         return result.one()
 
     def exists(self, id: int) -> bool:
@@ -88,3 +116,25 @@ class ArchiveEntryRepository:
         self.session.delete(entry)
         self.session.flush()
         return True
+
+    def _base_list_statement(self, q: str | None = None):
+        stmt = select(ArchiveEntry)
+        search_filter = self._build_search_filter(q)
+        if search_filter is not None:
+            stmt = stmt.where(search_filter)
+        return stmt
+
+    def _build_search_filter(self, q: str | None = None):
+        if q is None or not q.strip():
+            return None
+
+        pattern = f"%{q.strip()}%"
+        return or_(
+            ArchiveEntry.title.ilike(pattern),
+            ArchiveEntry.main_protagonist.ilike(pattern),
+            ArchiveEntry.original_platform.ilike(pattern),
+            ArchiveEntry.description.ilike(pattern),
+            ArchiveEntry.category.ilike(pattern),
+            ArchiveEntry.status.ilike(pattern),
+            ArchiveEntry.threat_level.ilike(pattern),
+        )

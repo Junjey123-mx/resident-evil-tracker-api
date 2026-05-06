@@ -42,42 +42,14 @@ class ArchiveEntryService:
         self,
         query_params: ArchiveEntryQueryParams,
     ) -> ArchiveEntryListResponse:
-        if query_params.q or query_params.sort == "rating":
-            entries = self.archive_repository.list_all()
-            entries = self._filter_entries(entries, query_params.q)
-            rating_scores = self._get_rating_scores(entries)
-            entries = self._sort_entries(
-                entries,
-                query_params.sort,
-                query_params.order,
-                rating_scores,
-            )
-            total = len(entries)
-            paginated_entries = self._paginate_entries(
-                entries,
-                query_params.page,
-                query_params.limit,
-            )
-            paginated_scores = self._select_rating_scores(
-                paginated_entries,
-                rating_scores,
-            )
-            return map_archive_entry_list_response(
-                paginated_entries,
-                total=total,
-                page=query_params.page,
-                limit=query_params.limit,
-                rating_scores=paginated_scores,
-            )
-
-        offset = (query_params.page - 1) * query_params.limit
         entries = self.archive_repository.list_paginated(
-            offset=offset,
+            q=query_params.q,
+            sort=query_params.sort,
+            order=query_params.order,
+            page=query_params.page,
             limit=query_params.limit,
-            sort_by=query_params.sort,
-            sort_order=query_params.order,
         )
-        total = self.archive_repository.count()
+        total = self.archive_repository.count_filtered(query_params.q)
         rating_scores = self._get_rating_scores(entries)
 
         return map_archive_entry_list_response(
@@ -180,77 +152,13 @@ class ArchiveEntryService:
         remapped["engine_name"] = remapped.pop("engine")
         return remapped
 
-    def _filter_entries(self, entries: list, query: str | None) -> list:
-        if not query:
-            return entries
-
-        normalized_query = query.strip().lower()
-        if not normalized_query:
-            return entries
-
-        return [
-            entry
-            for entry in entries
-            if normalized_query in self._entry_search_text(entry)
-        ]
-
-    def _entry_search_text(self, entry) -> str:
-        values = [
-            getattr(entry, "title", None),
-            getattr(entry, "alias_title", None),
-            getattr(entry, "main_protagonist", None),
-            getattr(entry, "original_platform", None),
-            getattr(entry, "description", None),
-        ]
-        return " ".join(str(value).lower() for value in values if value)
-
-    def _sort_entries(
-        self,
-        entries: list,
-        sort: str,
-        order: str,
-        rating_scores: dict[int, float],
-    ) -> list:
-        reverse = order == "desc"
-
-        if sort == "rating":
-            return sorted(
-                entries,
-                key=lambda entry: rating_scores.get(self._get_entry_id(entry), -1),
-                reverse=reverse,
-            )
-
-        return sorted(
-            entries,
-            key=lambda entry: getattr(entry, sort, None) or "",
-            reverse=reverse,
-        )
-
-    def _paginate_entries(self, entries: list, page: int, limit: int) -> list:
-        safe_limit = max(limit, 1)
-        offset = (page - 1) * safe_limit
-        return entries[offset : offset + safe_limit]
-
     def _get_rating_scores(self, entries: list) -> dict[int, float]:
-        scores = {}
-        for entry in entries:
-            entry_id = self._get_entry_id(entry)
-            rating = self.rating_repository.get_by_series_id(entry_id)
-            score = self._get_rating_score(rating)
-            if score is not None:
-                scores[entry_id] = score
-        return scores
-
-    def _select_rating_scores(
-        self,
-        entries: list,
-        rating_scores: dict[int, float],
-    ) -> dict[int, float]:
-        entry_ids = {self._get_entry_id(entry) for entry in entries}
+        entry_ids = [self._get_entry_id(entry) for entry in entries]
+        ratings = self.rating_repository.list_by_series_ids(entry_ids)
         return {
-            entry_id: score
-            for entry_id, score in rating_scores.items()
-            if entry_id in entry_ids
+            rating.series_id: float(rating.score)
+            for rating in ratings
+            if rating.score is not None
         }
 
     def _get_rating_score(self, rating) -> float | None:

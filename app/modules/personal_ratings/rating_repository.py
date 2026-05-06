@@ -18,6 +18,13 @@ class RatingRepository:
         stmt = select(Rating).where(Rating.series_id == series_id)
         return self.session.exec(stmt).first()
 
+    def list_by_series_ids(self, series_ids: list[int]) -> list[Rating]:
+        if not series_ids:
+            return []
+
+        stmt = select(Rating).where(Rating.series_id.in_(series_ids))
+        return list(self.session.exec(stmt).all())
+
     def list_all(self) -> list[Rating]:
         return list(self.session.exec(select(Rating)).all())
 
