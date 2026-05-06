@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed CORS origins; parsed in app/core/cors.py
     backend_cors_origins: str = ""
 
+    # Cloudinary cover upload settings
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
+    cloudinary_folder: str = "resident-evil-tracker/covers"
+
     # extra="ignore" allows .env files with legacy or unrelated variables
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
