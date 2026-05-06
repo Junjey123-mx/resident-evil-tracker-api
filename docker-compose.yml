@@ -23,7 +23,7 @@ services:
     image: postgres:17
     container_name: resident-evil-tracker-db
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: resident_evil_tracker
       POSTGRES_USER: resident_user
