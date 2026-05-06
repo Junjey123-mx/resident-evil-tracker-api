@@ -32,3 +32,32 @@ class ActivityLogService:
         logs = self.activity_repository.list_by_series_id(series_id, limit=limit)
         total = self.activity_repository.count_by_series_id(series_id)
         return map_activity_log_list(logs, total=total, limit=limit)
+
+    def record_activity(
+        self,
+        series_id: int | None,
+        action: str,
+        message: str,
+        previous_value: str | None = None,
+        new_value: str | None = None,
+        commit: bool = False,
+    ):
+        data = {
+            "series_id": series_id,
+            "action": action,
+            "message": message,
+            "previous_value": previous_value,
+            "new_value": new_value,
+        }
+
+        log = self.activity_repository.create(data)
+
+        if commit:
+            try:
+                self.session.commit()
+                self.session.refresh(log)
+            except Exception:
+                self.session.rollback()
+                raise
+
+        return log

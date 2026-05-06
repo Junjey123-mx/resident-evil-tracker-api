@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 # Registers the relationship target for standalone service/database usage.
 from app.modules.activity_logs.activity_model import ActivityLog
+from app.modules.activity_logs.activity_service import ActivityLogService
 from app.modules.archive_entries.archive_entry_mapper import (
     map_archive_entry_detail,
     map_archive_entry_list_response,
@@ -37,6 +38,7 @@ class ArchiveEntryService:
         self.session = session
         self.archive_repository = ArchiveEntryRepository(session)
         self.rating_repository = RatingRepository(session)
+        self.activity_service = ActivityLogService(session)
 
     def list_archive_entries(
         self,
@@ -77,6 +79,13 @@ class ArchiveEntryService:
 
         try:
             entry = self.archive_repository.create(data)
+            self.activity_service.record_activity(
+                series_id=entry.id,
+                action="game_created",
+                message=f"Se agregó '{entry.title}' al archivo Umbrella.",
+                previous_value=None,
+                new_value=entry.title,
+            )
             self.session.commit()
             self.session.refresh(entry)
         except Exception as exc:
@@ -95,11 +104,19 @@ class ArchiveEntryService:
             raise self._not_found_error()
 
         data = self._prepare_update_data(payload)
+        updated_fields = self._format_updated_fields(data)
 
         try:
             updated_entry = self.archive_repository.update(entry_id, data)
             if updated_entry is None:
                 raise self._not_found_error()
+            self.activity_service.record_activity(
+                series_id=updated_entry.id,
+                action="game_updated",
+                message=f"Se actualizó '{updated_entry.title}' en el archivo Umbrella.",
+                previous_value="Registro anterior",
+                new_value=updated_fields,
+            )
             self.session.commit()
             self.session.refresh(updated_entry)
         except HTTPException:
@@ -120,8 +137,16 @@ class ArchiveEntryService:
         entry = self.archive_repository.get_by_id(entry_id)
         if entry is None:
             raise self._not_found_error()
+        title = entry.title
 
         try:
+            self.activity_service.record_activity(
+                series_id=entry_id,
+                action="game_deleted",
+                message=f"Se eliminó '{title}' del archivo Umbrella.",
+                previous_value=title,
+                new_value=None,
+            )
             deleted = self.archive_repository.delete(entry_id)
             if not deleted:
                 raise self._not_found_error()
@@ -151,6 +176,18 @@ class ArchiveEntryService:
         remapped = data.copy()
         remapped["engine_name"] = remapped.pop("engine")
         return remapped
+
+    def _format_updated_fields(self, data: dict) -> str:
+        fields = [
+            "engine" if field == "engine_name" else field
+            for field in data
+            if field != "updated_at"
+        ]
+
+        if not fields:
+            return "Campos actualizados: sin cambios enviados"
+
+        return f"Campos actualizados: {', '.join(fields)}"
 
     def _get_rating_scores(self, entries: list) -> dict[int, float]:
         entry_ids = [self._get_entry_id(entry) for entry in entries]
