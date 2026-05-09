@@ -25,7 +25,7 @@ class DashboardService:
         total_entries = self.archive_repository.count()
         average_rating = self._get_average_rating()
         top_ratings = self.rating_repository.list_top(n=5)
-        recent_entries = self.archive_repository.get_recent(n=5)
+        recent_entries = self.archive_repository.get_recent(n=7)
         latest_entry = recent_entries[0] if recent_entries else None
         recent_activity = self.activity_repository.list_recent(n=10)
 

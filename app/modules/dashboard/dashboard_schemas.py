@@ -27,6 +27,7 @@ class DashboardRecentEntry(BaseModel):
     category_label: str
     status: Optional[str] = None
     status_label: str
+    cover_image_url: Optional[str] = None
     created_at: datetime
 
 

@@ -53,6 +53,7 @@ def map_recent_entry(entry) -> DashboardRecentEntry:
         category_label=get_category_label(category),
         status=status,
         status_label=get_status_label(status),
+        cover_image_url=_get_value(entry, "cover_image_url"),
         created_at=serialize_datetime(_get_value(entry, "created_at")),
     )
 
