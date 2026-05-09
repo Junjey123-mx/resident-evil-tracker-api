@@ -8,7 +8,7 @@ _settings = get_settings()
 
 # pool_pre_ping=True detects stale connections before use
 engine = create_engine(
-    _settings.database_url,
+    _settings.get_database_url(),
     echo=False,
     pool_pre_ping=True,
 )
